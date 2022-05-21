@@ -45,6 +45,7 @@ from gym.envs.box2d.car_dynamics_modified import Car
 from gym.utils import seeding, EzPickle
 
 import pyglet
+import pickle
 
 pyglet.options["debug_gl"] = False
 from pyglet import gl
@@ -53,20 +54,20 @@ STATE_W = 96  # less than Atari 160x192
 STATE_H = 96
 VIDEO_W = 600
 VIDEO_H = 400
-WINDOW_W = 800  # 1000
-WINDOW_H = 700  # 800
+WINDOW_W = 800#1000
+WINDOW_H = 700#800
 
-SCALE = 10.0  # 6.0  # Track scale
+SCALE = 10.0#6.0  # Track scale
 TRACK_RAD = 900 / SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD = 2000 / SCALE  # Game over boundary
-FPS = 50  # 50  # Frames per second
-ZOOM = 0.2  # 1.5#2.7  # Camera zoom
+FPS = 50 #50  # Frames per second
+ZOOM = 1#0.13#1.5#2.7  # Camera zoom
 ZOOM_FOLLOW = True  # Set to False for fixed view (don't use zoom)
 
 
 TRACK_DETAIL_STEP = 21 / SCALE
 TRACK_TURN_RATE = 0.31
-TRACK_WIDTH = (40 / SCALE) * 1.25  # 40 / SCALE
+TRACK_WIDTH = (40 / SCALE) * 2#1.25 #40 / SCALE
 BORDER = 8 / SCALE
 BORDER_MIN_COUNT = 4
 
@@ -147,7 +148,7 @@ class CarRacing(gym.Env, EzPickle):
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
-        return [1]  # [seed]
+        return [1]#[seed]
 
     def _destroy(self):
         if not self.road:
@@ -160,7 +161,7 @@ class CarRacing(gym.Env, EzPickle):
     def _create_track(self):
         CHECKPOINTS = 12
 
-        # THIS PART FOR SAVING TRACK PARAMETERS
+# THIS PART FOR SAVING TRACK PARAMETERS        
         # noise_list = []
         # rad_list = []
         # # Create checkpoints
@@ -189,12 +190,12 @@ class CarRacing(gym.Env, EzPickle):
         #     for item in rad_list:
         #         f.write("%s\n" % item)
         #     f.close()
-        # THIS PART FOR SAVING TRACK PARAMETERS
+# THIS PART FOR SAVING TRACK PARAMETERS 
 
-        # THIS PART FOR READING TRACK PARAMETERS
-        # Create checkpoints
+# THIS PART FOR READING TRACK PARAMETERS
+        #Create checkpoints
         # with open('./Simulation Parameters/desired_track_parameters.txt') as f:
-        with open("./Simulation Parameters/desired2_track_parameters.txt") as f:
+        with open('./Simulation Parameters/desired2_track_parameters.txt') as f:
             lines = f.readlines()
             f.close()
         noise = [float(s.strip()) for s in lines[:12]]
@@ -209,10 +210,8 @@ class CarRacing(gym.Env, EzPickle):
                 alpha = 2 * math.pi * c / CHECKPOINTS
                 self.start_alpha = 2 * math.pi * (-0.5) / CHECKPOINTS
                 rad[c] = 1.5 * TRACK_RAD
-            checkpoints.append(
-                (alpha, rad[c] * math.cos(alpha), rad[c] * math.sin(alpha))
-            )
-        # THIS PART FOR READING TRACK PARAMETERS
+            checkpoints.append((alpha, rad[c] * math.cos(alpha), rad[c] * math.sin(alpha)))
+# THIS PART FOR READING TRACK PARAMETERS
 
         self.road = []
 
@@ -326,10 +325,15 @@ class CarRacing(gym.Env, EzPickle):
             for neg in range(BORDER_MIN_COUNT):
                 border[i - neg] |= border[i]
 
-        # Create tiles
-        start_point, end_point = 50, 111
-        # for i in range(start_point,end_point):
-        for i in range(len(track)):
+        # Create tiles 
+        # {10.0}    -> (85)->[58,125]   | (45)->[0,46]      | (35)->[310,348]   | (65)->[282,333]
+        # {10.0v2}  -> (95)->[50,111]   | (110)->[250, 297]   | (130)->[128,181]   | 
+        # {14.0}    -> (100)->[281,345] |
+
+        start_point, end_point = 50,111 #math.floor(0.2*len(track)), math.floor(0.35*len(track)) 
+        # print(start_point,end_point)
+        # track = track[start_point:end_point]
+        for i in range(start_point,end_point): #range(len(track)):
             alpha1, beta1, x1, y1 = track[i]
             alpha2, beta2, x2, y2 = track[i - 1]
             road1_l = (
@@ -380,9 +384,11 @@ class CarRacing(gym.Env, EzPickle):
                 self.road_poly.append(
                     ([b1_l, b1_r, b2_r, b2_l], (1, 1, 1) if i % 2 == 0 else (1, 0, 0))
                 )
-        # self.track = track[start_point:end_point]
-        self.track = track
+        self.track = track[start_point:end_point] #track
+        print(abs(self.track[0][1]-self.track[-1][1])*180/np.pi)
         return True
+
+        #_____________________________________________________________________________________________________
 
     def reset(self):
         self._destroy()
@@ -431,7 +437,7 @@ class CarRacing(gym.Env, EzPickle):
                 done = True
                 self.last_tile = False
             if self.tile_visited_count == len(self.track):
-                if not done:
+                if not done: 
                     self.last_tile = True
             x, y = self.car.hull.position
             if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
@@ -453,7 +459,7 @@ class CarRacing(gym.Env, EzPickle):
                 y=WINDOW_H * 2.5 / 40.00,
                 anchor_x="left",
                 anchor_y="center",
-                color=(255, 255, 255, 255),
+                color=(255, 0, 255, 255),
             )
             self.transform = rendering.Transform()
 
@@ -505,7 +511,8 @@ class CarRacing(gym.Env, EzPickle):
         t.enable()
         self.render_road()
         ######################## !!!!!!!!!!!!!!!!!!!!!!!!!!!! #############################
-        # traj = pd.read_pickle('./Simulation Data/trajectory_0.pkl')
+        # PLOT ON TRACK THE DESIRED TRAJECTORY
+        # traj = pd.read_pickle('./DMPs/trajectory_1.pkl')
         # posx = traj['Position x']
         # posy = traj['Position y']
         # for i in range(len(posx)-1):
@@ -516,7 +523,7 @@ class CarRacing(gym.Env, EzPickle):
             geom.render()
         self.viewer.onetime_geoms = []
         t.disable()
-        # self.render_indicators(WINDOW_W, WINDOW_H)
+        self.render_indicators(WINDOW_W, WINDOW_H)
 
         if mode == "human":
             win.flip()
@@ -651,10 +658,41 @@ class CarRacing(gym.Env, EzPickle):
 if __name__ == "__main__":
     import time
     from pyglet.window import key
-
-    path = "/mnt/c/Users/Stelios/Documents/Thesis/Project/Simulation Data/"
+    import pygame
+    path = "C:/Users/Stelios/Desktop/Thesis/Project/Simulation Data/"
     a = np.array([0.0, 0.0, 0.0])
 
+
+    # def returnInput(a):
+    #     for event in pygame.event.get():
+    #         if event.type != pygame.JOYAXISMOTION:
+    #             continue            
+            
+    #         if event.axis == 1:
+    #             a[1] = (event.value + 1)/(-2)+1
+    #         elif event.axis == 0:
+    #             a[0] = event.value/4
+    #         elif event.axis == 2:
+    #             a[2] = (event.value + 1)/(-2)+1
+
+    #         # print(a)
+    #     return a
+    def returnInput(a):
+        for event in pygame.event.get():
+            if event.type != pygame.JOYAXISMOTION:
+                continue            
+            # print(event.value)
+            if event.axis == 3 and event.value < 0:
+                a[1] = -event.value#(event.value + 1)/(-2)+1
+            elif event.axis == 0:
+                a[0] = event.value/4
+            elif event.axis == 3 and event.value > 0:
+                # print(-event.value)
+                a[2] = event.value#(event.value + 1)/(-2)+1
+
+            # print(a)
+        return a    
+  
     def key_press(k, mod):
         global restart
         if k == key.ESCAPE:
@@ -682,96 +720,94 @@ if __name__ == "__main__":
         if k == key.DOWN:
             a[2] = 0
 
-    corner_num = 95
     ##### READ DESIRED ACTION INPUTS ####
     import pandas as pd
-    import pickle
-
+    corner_num = 95
     # d_actions = pd.read_pickle('./Simulation Data/actions_0.pkl')
-    d_actions = pd.read_pickle("./Desired Data/actions_0.pkl")
+    d_actions = pd.read_pickle('./Desired Data/actions_'+str(corner_num)+'.pkl')
+    # print(d_actions.shape)
+    import pygame
+    # import matplotlib.pyplot as plt
+    # import matplotlib.patches as mpatches
 
-    with open(
-        "./Corners Templates/corner" + str(corner_num) + ".txt", "rb"
-    ) as fp:  # Pickling
-        track = pickle.load(fp)
+    # plt.plot(d_actions[:,0])
+    # plt.plot(d_actions0['Steering Angle'])
+
+    # red_patch = mpatches.Patch(color='blue', label='Primitive')
+    # blue_patch = mpatches.Patch(color='orange', label='Ground Truth')
+
+    # plt.legend(handles=[red_patch,blue_patch])
+    # plt.show()
+
+    # pygame.init()
+    # pygame.joystick.init()
+
+    # print(pygame.joystick.get_count())
+    # joystick = pygame.joystick.Joystick(0)
+    # joystick.init()
+    # print(joystick.get_name())
 
     env = CarRacing()
-    env.track = track
     env.render()
     env.viewer.window.on_key_press = key_press
     env.viewer.window.on_key_release = key_release
-    record_video = True  # False
+    record_video = False
     if record_video:
-        from gym.wrappers.monitor import Monitor
-
+        # from gym.wrappers.monitor import Monitor
+        from gym.wrappers import Monitor
         env = Monitor(env, "./video-test", force=True)
     isopen = True
-
-    episode = 0
+    episode = 0    
     while isopen:
         env.reset()
         total_reward = 0.0
         steps = 0
+        ep_time = 0
         new_episode = False
         restart = False
         position = []
         velocity = []
-        df = pd.DataFrame(
-            columns=[
-                "Position x",
-                "Velocity x",
-                "Position y",
-                "Velocity y",
-                "Angular Velocity ω",
-                "Angle δ",
-                "Reward r",
-            ]
-        )
-        actions = pd.DataFrame(columns=["Steering Angle", "Gas", "Brake"])
+        df = pd.DataFrame(columns=['Position x', 'Velocity x', 'Position y', 'Velocity y', 'Angular Velocity ω', 'Angle δ','Reward r','Timestep t'])
+        actions = pd.DataFrame(columns=['Steering Angle', 'Gas', 'Brake'])
+        
+        prev_val = 0.0
+        
         while True:
-            # print("Position (x,y): ",env.car.hull.position[0],env.car.hull.position[1])
-            # print("Velocity (ux,uy): ",env.car.hull.linearVelocity[0],env.car.hull.linearVelocity[1])
-            # print("AngVelocity (wx,wy): ",env.car.hull.angularVelocity)
-            # print("Angle : ",-env.car.hull.angle)
-
-            df.loc[steps] = [
-                env.car.hull.position[0],
-                env.car.hull.linearVelocity[0],
-                env.car.hull.position[1],
-                env.car.hull.linearVelocity[1],
-                env.car.hull.angularVelocity,
-                -env.car.hull.angle,
-                total_reward,
-            ]
-            actions.loc[steps] = [a[0], a[1], a[2]]
-            a[0], a[1], a[2] = (
-                d_actions["Steering Angle"][steps],
-                d_actions["Gas"][steps],
-                d_actions["Brake"][steps],
-            )
+            starttime = time.process_time()
+            df.loc[steps] = [env.car.hull.position[0],env.car.hull.linearVelocity[0],env.car.hull.position[1],env.car.hull.linearVelocity[1],env.car.hull.angularVelocity,-env.car.hull.angle,total_reward,ep_time] 
+            actions.loc[steps] = [a[0],a[1],a[2]]
+            # a = returnInput(a)
+            if steps > len(d_actions)-1:
+                steps = len(d_actions)-1
+            a[0],a[1],a[2] = d_actions['Steering Angle'][steps], d_actions['Gas'][steps], d_actions['Brake'][steps]
             # a[0],a[1],a[2] = d_actions[:,0][steps], d_actions[:,1][steps], d_actions[:,2][steps]
+            
+
             s, r, done, info = env.step(a)
             time.sleep(0.025)
             total_reward += r
-            # if steps % 200 == 0 or done:
-            #     print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
-            #     print("step {} total_reward {:+0.2f}".format(steps, total_reward))
             steps += 1
             isopen = env.render()
             if done or restart or isopen == False:
                 break
+        
+            endtime = time.process_time()
+            ep_time += (endtime - starttime)
+        print("Episode total simulation time: ",ep_time, " sec")
 
+        
         if restart == True:
             print("Restarting episode....")
             continue
-        print("Storing.... ", "trajectory_" + str(episode) + ".pkl")
-        df.to_pickle(
-            path + "trajectory_" + str(episode) + ".pkl"
-        )  # THIS CAN BE CHANGED WITH SOMETHING FASTER
-        print("Storing.... ", "actions_" + str(episode) + ".pkl")
-        actions.to_pickle(
-            path + "actions_" + str(episode) + ".pkl"
-        )  # THIS CAN BE CHANGED WITH SOMETHING FASTER
+
+        print("Storing.... ", 'trajectory_' + str(corner_num) + '.pkl' )
+        df.to_pickle(path + 'trajectory_' + str(corner_num) + '.pkl')  # THIS CAN BE CHANGED WITH SOMETHING FASTER
+        print("Storing.... ", 'actions_' + str(corner_num) + '.pkl' )
+        actions.to_pickle(path + 'actions_' + str(corner_num) + '.pkl')  # THIS CAN BE CHANGED WITH SOMETHING FASTER        
+        
+        # with open("./Corners Templates/corner"+str(corner_num)+".txt", "wb") as fp:   #Pickling
+        #     pickle.dump(env.track, fp)
+        
         print("Total reward in episode {} : {:+0.2f}".format(episode, total_reward))
-        episode += 1
+        episode += 1           
     env.close()

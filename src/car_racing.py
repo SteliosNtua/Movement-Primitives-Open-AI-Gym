@@ -1,6 +1,7 @@
 __credits__ = ["Andrea PIERRÉ"]
 
 import math
+
 from typing import Optional
 
 import Box2D
@@ -23,15 +24,25 @@ SCALE = 6.0  # Track scale
 TRACK_RAD = 900 / SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD = 2000 / SCALE  # Game over boundary
 FPS = 50  # Frames per second
-ZOOM = 2.7  # Camera zoom
+ZOOM = 1.0#2.7  # Camera zoom
 ZOOM_FOLLOW = True  # Set to False for fixed view (don't use zoom)
 
 
 TRACK_DETAIL_STEP = 21 / SCALE
 TRACK_TURN_RATE = 0.31
-TRACK_WIDTH = 40 / SCALE
+TRACK_WIDTH = (40 / SCALE) * 1.25  # 40 / SCALE
 BORDER = 8 / SCALE
 BORDER_MIN_COUNT = 4
+
+# Parameters added by Stelios
+sim_params_path = "./simulation_parameters/desired_track_parameters.txt"
+# sim_params_path = "./simulation_parameters/desired2_track_parameters.txt"
+
+sim_data_actions = "./simulation_data/actions/"
+sim_data_states = "./simulation_data/states/"
+desired_data_actions = "./desired_data/actions/"
+desired_data_states = "./desired_data/states/"
+
 
 
 class FrictionDetector(contactListener):
@@ -191,7 +202,7 @@ class CarRacing(gym.Env, EzPickle):
             self.world.DestroyBody(t)
         self.road = []
         self.car.destroy()
-
+   
     def _init_colors(self):
         if self.domain_randomize:
             # domain randomize the bg and grass colour
@@ -208,25 +219,62 @@ class CarRacing(gym.Env, EzPickle):
             self.bg_color = np.array([102, 204, 102])
             self.grass_color = np.array([102, 230, 102])
 
-    def _create_track(self):
-        CHECKPOINTS = 12
-
+    def load_checkpoints(self, n_checkpoints):
+        with open(sim_params_path) as f:
+            lines = f.readlines()
+            f.close()
+        noise = [float(s.strip()) for s in lines[:n_checkpoints]]
+        rad = [float(s.strip()) for s in lines[-n_checkpoints:]]
+        checkpoints = []
+        for c in range(n_checkpoints):
+            alpha = 2 * math.pi * c / n_checkpoints + noise[c]
+            if c == 0:
+                alpha = 0
+                rad[c] = 1.5 * TRACK_RAD
+            if c == n_checkpoints - 1:
+                alpha = 2 * math.pi * c / n_checkpoints
+                self.start_alpha = 2 * math.pi * (-0.5) / n_checkpoints
+                rad[c] = 1.5 * TRACK_RAD
+            checkpoints.append((alpha, rad[c] * math.cos(alpha), rad[c] * math.sin(alpha)))
+        return checkpoints
+    
+    def store_checkpoints(self, n_checkpoints):
+        noise_list = []
+        rad_list = []
         # Create checkpoints
         checkpoints = []
-        for c in range(CHECKPOINTS):
-            noise = self.np_random.uniform(0, 2 * math.pi * 1 / CHECKPOINTS)
-            alpha = 2 * math.pi * c / CHECKPOINTS + noise
+        for c in range(n_checkpoints):
+            noise = self.np_random.uniform(0, 2 * math.pi * 1 / n_checkpoints)
+            alpha = 2 * math.pi * c / n_checkpoints + noise
             rad = self.np_random.uniform(TRACK_RAD / 3, TRACK_RAD)
 
             if c == 0:
                 alpha = 0
                 rad = 1.5 * TRACK_RAD
-            if c == CHECKPOINTS - 1:
-                alpha = 2 * math.pi * c / CHECKPOINTS
-                self.start_alpha = 2 * math.pi * (-0.5) / CHECKPOINTS
+            if c == n_checkpoints - 1:
+                alpha = 2 * math.pi * c / n_checkpoints
+                self.start_alpha = 2 * math.pi * (-0.5) / n_checkpoints
                 rad = 1.5 * TRACK_RAD
-
+            noise_list.append(noise)
+            rad_list.append(rad)
             checkpoints.append((alpha, rad * math.cos(alpha), rad * math.sin(alpha)))
+
+        with open('new_track_parameters.txt', 'w') as f:
+            for item in noise_list:
+                f.write("%s\n" % item)
+            f.write("\n")
+            for item in rad_list:
+                f.write("%s\n" % item)
+            f.close()
+        return checkpoints
+
+    def _create_track(self):
+        CHECKPOINTS = 12
+        
+        # checkpoints = self.store_checkpoints(CHECKPOINTS)
+
+        checkpoints =  self.load_checkpoints(CHECKPOINTS)
+
         self.road = []
 
         # Go from one checkpoint to another to create track
@@ -340,7 +388,10 @@ class CarRacing(gym.Env, EzPickle):
                 border[i - neg] |= border[i]
 
         # Create tiles
-        for i in range(len(track)):
+        start_point, end_point = 50,111 #math.floor(0.2*len(track)), math.floor(0.35*len(track)) 
+        # print(start_point,end_point)
+        # track = track[start_point:end_point]
+        for i in range(start_point,end_point): #range(len(track)):
             alpha1, beta1, x1, y1 = track[i]
             alpha2, beta2, x2, y2 = track[i - 1]
             road1_l = (
@@ -395,7 +446,7 @@ class CarRacing(gym.Env, EzPickle):
                         (255, 255, 255) if i % 2 == 0 else (255, 0, 0),
                     )
                 )
-        self.track = track
+        self.track = track[start_point:end_point] #track
         return True
 
     def reset(
@@ -650,55 +701,152 @@ class CarRacing(gym.Env, EzPickle):
             pygame.display.quit()
             self.isopen = False
             pygame.quit()
+def init_controller():
+    import hid
+    gamepad = hid.device()
+    gamepad.open(0x2563,0x0575)
+    gamepad.set_nonblocking(True)
+    return gamepad
 
+def controller_input(gamepad, a):
+    steer_cap = 0.5
+    report = gamepad.read(64)
+    if report:
+        if report[12] >100:
+            print("RESTART EPISODE\n")
+            global restart
+            restart = True
+            return a
+        if report[13] >100:
+            print("QUIT.....\n")
+            env.close()
+            return a   
+        x = ((report[3] - 127) / 127)
+        steer = np.tan(x)/(np.pi/2) * steer_cap
+        gas = max(0, -((report[6] - 128)/127))
+        brake = max(0, ((report[6] - 128)/127))
+        a = [steer, gas, brake]
+    return a
+
+def desired_input(d_actions, steps):
+    a = []
+    if steps > len(d_actions)-1:
+        steps = len(d_actions)-1
+    a[0],a[1],a[2] = d_actions['Steering Angle'][steps], d_actions['Gas'][steps], d_actions['Brake'][steps]
+    # a[0],a[1],a[2] = d_actions[:,0][steps], d_actions[:,1][steps], d_actions[:,2][steps]
+    return a
+
+def log_simulation(actions, states, steps, a, env, total_reward, total_time):
+    states.loc[steps] = [
+        env.car.hull.position[0],
+        env.car.hull.linearVelocity[0],
+        env.car.hull.position[1],
+        env.car.hull.linearVelocity[1],
+        env.car.hull.angularVelocity,
+        -env.car.hull.angle,
+        total_reward,
+        total_time
+        ] 
+    actions.loc[steps] = [a[0],a[1],a[2]]
+    return actions, states
+
+def register_input():
+    for event in pygame.event.get():
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_q:
+                print("QUIT.....\n")
+                env.close()
+            if event.key == pygame.K_r:
+                print("RESTART EPISODE\n")
+                global restart
+                restart = True
+            if event.key == pygame.K_LEFT:
+                a[0] = -1.0
+            if event.key == pygame.K_RIGHT:
+                a[0] = +1.0
+            if event.key == pygame.K_UP:
+                a[1] = +1.0
+            if event.key == pygame.K_DOWN:
+                a[2] = +0.8  # set 1.0 for wheels to block to zero rotation
+
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_LEFT:
+                a[0] = 0
+            if event.key == pygame.K_RIGHT:
+                a[0] = 0
+            if event.key == pygame.K_UP:
+                a[1] = 0
+            if event.key == pygame.K_DOWN:
+                a[2] = 0
 
 if __name__ == "__main__":
     a = np.array([0.0, 0.0, 0.0])
     import pygame
+    import time
+    import pandas as pd
+    corner_num = 95
 
-    def register_input():
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    a[0] = -1.0
-                if event.key == pygame.K_RIGHT:
-                    a[0] = +1.0
-                if event.key == pygame.K_UP:
-                    a[1] = +1.0
-                if event.key == pygame.K_DOWN:
-                    a[2] = +0.8  # set 1.0 for wheels to block to zero rotation
-                if event.key == pygame.K_RETURN:
-                    global restart
-                    restart = True
 
-            if event.type == pygame.KEYUP:
-                if event.key == pygame.K_LEFT:
-                    a[0] = 0
-                if event.key == pygame.K_RIGHT:
-                    a[0] = 0
-                if event.key == pygame.K_UP:
-                    a[1] = 0
-                if event.key == pygame.K_DOWN:
-                    a[2] = 0
+    #Initialize controller
+    # gamepad = init_controller()
 
     env = CarRacing()
     env.render()
 
     isopen = True
+    episode = 0
     while isopen:
         env.reset()
+        import pickle
+
+        #Save track and road polylines
+        # with open("road_poly.pkl", "wb") as fp: 
+        #     pickle.dump(env.road_poly, fp)
+        # with open("track.pkl", "wb") as fp:  
+        #     pickle.dump(env.track, fp)
+
         total_reward = 0.0
+        total_time = 0.0
         steps = 0
         restart = False
+        states = pd.DataFrame(columns=['Position x', 'Velocity x', 'Position y', 'Velocity y', 'Angular Velocity ω', 'Angle δ','Reward r','Timestep t'])
+        actions = pd.DataFrame(columns=['Steering Angle', 'Gas', 'Brake'])
         while True:
+            starttime = time.process_time()
+
+            # Keyborad control
             register_input()
+
+            # Analog controller input
+            # a = controller_input(gamepad, a)
+
+            # Demonstrate desired actions
+            # d_actions = pd.read_pickle('./Desired Data/actions_'+str(corner_num)+'.pkl')
+            # a = desired_input(d_actions, steps)
+
+            # Log actions and states of the simulation
+            actions, states = log_simulation(actions, states, steps, a, env, total_reward, total_time)
+
             s, r, done, info = env.step(a)
+            time.sleep(0.015)
             total_reward += r
-            if steps % 200 == 0 or done:
-                print("\naction " + str([f"{x:+0.2f}" for x in a]))
-                print(f"step {steps} total_reward {total_reward:+0.2f}")
             steps += 1
             isopen = env.render()
             if done or restart or isopen is False:
                 break
+
+            endtime = time.process_time()
+            total_time += (endtime - starttime)
+        print(f"Episode total simulation time: {total_time} sec\n")
+        print(states)
+        print("Storing.... ", 'trajectory_' + str(corner_num) + '.pkl' )
+        states.to_pickle(sim_data_states + 'states_' + str(corner_num) + '.pkl')  # THIS CAN BE CHANGED WITH SOMETHING FASTER
+        print("Storing.... ", 'actions_' + str(corner_num) + '.pkl' )
+        actions.to_pickle(sim_data_actions + 'actions_' + str(corner_num) + '.pkl')  # THIS CAN BE CHANGED WITH SOMETHING FASTER        
+        
+        # with open("./Corners Templates/corner"+str(corner_num)+".txt", "wb") as fp:   #Pickling
+        #     pickle.dump(env.track, fp)
+        
+        print("Total reward in episode {} : {:+0.2f}\n".format(episode, total_reward))
+        episode += 1    
     env.close()
