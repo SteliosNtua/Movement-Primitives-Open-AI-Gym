@@ -20,11 +20,11 @@ VIDEO_H = 400
 WINDOW_W = 1000
 WINDOW_H = 800
 
-SCALE = 6.0  # Track scale
+SCALE = 10.0  # Track scale
 TRACK_RAD = 900 / SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD = 2000 / SCALE  # Game over boundary
 FPS = 50  # Frames per second
-ZOOM = 1.0#2.7  # Camera zoom
+ZOOM = 1#2.7  # Camera zoom
 ZOOM_FOLLOW = True  # Set to False for fixed view (don't use zoom)
 
 
@@ -388,10 +388,15 @@ class CarRacing(gym.Env, EzPickle):
                 border[i - neg] |= border[i]
 
         # Create tiles
-        start_point, end_point = 50,111 #math.floor(0.2*len(track)), math.floor(0.35*len(track)) 
+        # {10.0}    -> (85)->[58,125]   | (45)->[0,46]        | (35)->[310,348]    | (65)->[282,333]
+        # {10.0v2}  -> (95)->[50,111]   | (110)->[250, 297]   | (130)->[128,181]   | 
+        # {14.0}    -> (100)->[281,345] |
+
+        start_point, end_point = 310,348 #math.floor(0.2*len(track)), math.floor(0.35*len(track)) 
         # print(start_point,end_point)
         # track = track[start_point:end_point]
-        for i in range(start_point,end_point): #range(len(track)):
+        for i in range(start_point,end_point):
+        # for i in range(len(track)):
             alpha1, beta1, x1, y1 = track[i]
             alpha2, beta2, x2, y2 = track[i - 1]
             road1_l = (
@@ -446,7 +451,8 @@ class CarRacing(gym.Env, EzPickle):
                         (255, 255, 255) if i % 2 == 0 else (255, 0, 0),
                     )
                 )
-        self.track = track[start_point:end_point] #track
+        # self.track = track 
+        self.track = track[start_point:end_point]
         return True
 
     def reset(
@@ -534,8 +540,8 @@ class CarRacing(gym.Env, EzPickle):
         angle = -self.car.hull.angle
         # Animating first second zoom.
         zoom = 0.1 * SCALE * max(1 - self.t, 0) + ZOOM * SCALE * min(self.t, 1)
-        scroll_x = -(self.car.hull.position[0] + PLAYFIELD) * zoom
-        scroll_y = -(self.car.hull.position[1] + PLAYFIELD) * zoom
+        scroll_x = -(self.car.hull.position[0]) * zoom
+        scroll_y = -(self.car.hull.position[1]) * zoom
         trans = pygame.math.Vector2((scroll_x, scroll_y)).rotate_rad(angle)
         trans = (WINDOW_W / 2 + trans[0], WINDOW_H / 4 + trans[1])
 
@@ -570,10 +576,10 @@ class CarRacing(gym.Env, EzPickle):
     def _render_road(self, zoom, translation, angle):
         bounds = PLAYFIELD
         field = [
-            (2 * bounds, 2 * bounds),
-            (2 * bounds, 0),
-            (0, 0),
-            (0, 2 * bounds),
+            (bounds, bounds),
+            (bounds, -bounds),
+            (-bounds, -bounds),
+            (-bounds, bounds),
         ]
 
         # draw background
@@ -584,8 +590,8 @@ class CarRacing(gym.Env, EzPickle):
         # draw grass patches
         k = bounds / (20.0)
         grass = []
-        for x in range(0, 40, 2):
-            for y in range(0, 40, 2):
+        for x in range(-20, 20, 2):
+            for y in range(-20, 20, 2):
                 grass.append(
                     [
                         (k * x + k, k * y + 0),
@@ -602,7 +608,7 @@ class CarRacing(gym.Env, EzPickle):
         # draw road
         for poly, color in self.road_poly:
             # converting to pixel coordinates
-            poly = [(p[0] + PLAYFIELD, p[1] + PLAYFIELD) for p in poly]
+            poly = [(p[0], p[1]) for p in poly]
             color = [int(c) for c in color]
             self._draw_colored_polygon(self.surf, poly, color, zoom, translation, angle)
 
@@ -709,7 +715,7 @@ def init_controller():
     return gamepad
 
 def controller_input(gamepad, a):
-    steer_cap = 0.5
+    steer_cap = 0.3
     report = gamepad.read(64)
     if report:
         if report[12] >100:
