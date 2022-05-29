@@ -127,3 +127,15 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+
+# Repo data
+
+simulation_data
+desired_data
+
+
+# Test scipts or notebooks
+
+*test*

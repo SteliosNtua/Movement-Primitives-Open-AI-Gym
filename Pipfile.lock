@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "9349ede6e54082dea77e8ef8b90aa18edc57282fc88f85e3bf63753b0f442b23"
+            "sha256": "18e2f7ab2e6f18ee1346a08ed34a3ff29112436a5ef37060cced022326423337"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -127,6 +127,14 @@
             ],
             "index": "pypi",
             "version": "==2.1.2"
+        },
+        "pyglet": {
+            "hashes": [
+                "sha256:086317c022612bf0aa28f32134a8cbe3d11de96787f5412d38d9c6abb6cfc771",
+                "sha256:dee920203cf306159c503babb62f38787268708977f5c945d28337594b797c46"
+            ],
+            "index": "pypi",
+            "version": "==1.5.23"
         }
     },
     "develop": {
@@ -209,11 +217,11 @@
         },
         "ipython": {
             "hashes": [
-                "sha256:1b672bfd7a48d87ab203d9af8727a3b0174a4566b4091e9447c22fb63ea32857",
-                "sha256:70e5eb132cac594a34b5f799bd252589009905f05104728aea6a403ec2519dc1"
+                "sha256:341456643a764c28f670409bbd5d2518f9b82c013441084ff2c2fc999698f83b",
+                "sha256:807ae3cf43b84693c9272f70368440a9a7eaa2e7e6882dad943c32fbf7e51402"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==8.2.0"
+            "version": "==8.3.0"
         },
         "jedi": {
             "hashes": [
