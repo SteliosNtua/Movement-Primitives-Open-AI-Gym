@@ -24,7 +24,8 @@ SCALE = 10.0  # Track scale
 TRACK_RAD = 900 / SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD = 2000 / SCALE  # Game over boundary
 FPS = 50  # Frames per second
-ZOOM = 1#2.7  # Camera zoom
+ZOOM = 1.7  # Camera zoom
+# ZOOM = 0.2  # Camera zoom
 ZOOM_FOLLOW = True  # Set to False for fixed view (don't use zoom)
 
 
@@ -44,6 +45,16 @@ desired_data_actions = "./desired_data/actions/"
 desired_data_states = "./desired_data/states/"
 
 
+corners = {
+    35: [310,348],
+    45: [0,46],
+    65: [282,333],
+    85: [58,125],
+    95: [50,111],
+    100: [281,345],
+    110: [250, 297],
+    130: [128,181],
+}
 
 class FrictionDetector(contactListener):
     def __init__(self, env, lap_complete_percent):
@@ -162,8 +173,10 @@ class CarRacing(gym.Env, EzPickle):
         verbose: bool = True,
         lap_complete_percent: float = 0.95,
         domain_randomize: bool = False,
+        corner_num: int = None 
     ):
         EzPickle.__init__(self)
+        self.corner_num = corner_num
         self.domain_randomize = domain_randomize
         self._init_colors()
 
@@ -392,11 +405,11 @@ class CarRacing(gym.Env, EzPickle):
         # {10.0v2}  -> (95)->[50,111]   | (110)->[250, 297]   | (130)->[128,181]   | 
         # {14.0}    -> (100)->[281,345] |
 
-        start_point, end_point = 310,348 #math.floor(0.2*len(track)), math.floor(0.35*len(track)) 
-        # print(start_point,end_point)
-        # track = track[start_point:end_point]
-        for i in range(start_point,end_point):
-        # for i in range(len(track)):
+        if self.corner_num:
+            iter = range(corners[corner_num][0],corners[corner_num][1])
+        else:
+            iter = range(len(track))
+        for i in iter:
             alpha1, beta1, x1, y1 = track[i]
             alpha2, beta2, x2, y2 = track[i - 1]
             road1_l = (
@@ -427,32 +440,36 @@ class CarRacing(gym.Env, EzPickle):
             t.fixtures[0].sensor = True
             self.road_poly.append(([road1_l, road1_r, road2_r, road2_l], t.color))
             self.road.append(t)
-            if border[i]:
-                side = np.sign(beta2 - beta1)
-                b1_l = (
-                    x1 + side * TRACK_WIDTH * math.cos(beta1),
-                    y1 + side * TRACK_WIDTH * math.sin(beta1),
-                )
-                b1_r = (
-                    x1 + side * (TRACK_WIDTH + BORDER) * math.cos(beta1),
-                    y1 + side * (TRACK_WIDTH + BORDER) * math.sin(beta1),
-                )
-                b2_l = (
-                    x2 + side * TRACK_WIDTH * math.cos(beta2),
-                    y2 + side * TRACK_WIDTH * math.sin(beta2),
-                )
-                b2_r = (
-                    x2 + side * (TRACK_WIDTH + BORDER) * math.cos(beta2),
-                    y2 + side * (TRACK_WIDTH + BORDER) * math.sin(beta2),
-                )
-                self.road_poly.append(
-                    (
-                        [b1_l, b1_r, b2_r, b2_l],
-                        (255, 255, 255) if i % 2 == 0 else (255, 0, 0),
-                    )
-                )
-        # self.track = track 
-        self.track = track[start_point:end_point]
+            # Comment this if statement to remove red-white corner kerbs
+            # if border[i]:
+            #     side = np.sign(beta2 - beta1)
+            #     b1_l = (
+            #         x1 + side * TRACK_WIDTH * math.cos(beta1),
+            #         y1 + side * TRACK_WIDTH * math.sin(beta1),
+            #     )
+            #     b1_r = (
+            #         x1 + side * (TRACK_WIDTH + BORDER) * math.cos(beta1),
+            #         y1 + side * (TRACK_WIDTH + BORDER) * math.sin(beta1),
+            #     )
+            #     b2_l = (
+            #         x2 + side * TRACK_WIDTH * math.cos(beta2),
+            #         y2 + side * TRACK_WIDTH * math.sin(beta2),
+            #     )
+            #     b2_r = (
+            #         x2 + side * (TRACK_WIDTH + BORDER) * math.cos(beta2),
+            #         y2 + side * (TRACK_WIDTH + BORDER) * math.sin(beta2),
+            #     )
+            #     self.road_poly.append(
+            #         (
+            #             [b1_l, b1_r, b2_r, b2_l],
+            #             (255, 255, 255) if i % 2 == 0 else (255, 0, 0),
+            #         )
+            #     )
+        
+        if self.corner_num:
+            self.track = track[corners[corner_num][0]:corners[corner_num][1]]
+        else:
+            self.track = track 
         return True
 
     def reset(
@@ -790,13 +807,25 @@ if __name__ == "__main__":
     import pygame
     import time
     import pandas as pd
-    corner_num = 95
+    import sys
 
+        # {10.0}    -> (85)->[58,125]   | (45)->[0,46]        | (35)->[310,348]    | (65)->[282,333]
+        # {10.0v2}  -> (95)->[50,111]   | (110)->[250, 297]   | (130)->[128,181]   | 
+        # {14.0}    -> (100)->[281,345] |
+
+    print("CMD ENTRY: ", sys.argv)
+    corner_num = None
+    controller = "k"
+    if len(sys.argv) > 1: 
+        corner_num = int(sys.argv[1])
+    if len(sys.argv) > 2: 
+        controller = sys.argv[2]
 
     #Initialize controller
-    # gamepad = init_controller()
+    if controller == "c":
+        gamepad = init_controller()
 
-    env = CarRacing()
+    env = CarRacing(corner_num=corner_num)
     env.render()
 
     isopen = True
@@ -806,10 +835,10 @@ if __name__ == "__main__":
         import pickle
 
         #Save track and road polylines
-        # with open("road_poly.pkl", "wb") as fp: 
-        #     pickle.dump(env.road_poly, fp)
-        # with open("track.pkl", "wb") as fp:  
-        #     pickle.dump(env.track, fp)
+        with open("road_poly.pkl", "wb") as fp: 
+            pickle.dump(env.road_poly, fp)
+        with open("track.pkl", "wb") as fp:  
+            pickle.dump(env.track, fp)
 
         total_reward = 0.0
         total_time = 0.0
@@ -820,21 +849,23 @@ if __name__ == "__main__":
         while True:
             starttime = time.process_time()
 
-            # Keyborad control
-            register_input()
-
             # Analog controller input
-            # a = controller_input(gamepad, a)
+            if controller == "c":
+                a = controller_input(gamepad, a)
+
+                # Log actions and states of the simulation
+                actions, states = log_simulation(actions, states, steps, a, env, total_reward, total_time)
 
             # Demonstrate desired actions
-            # d_actions = pd.read_pickle('./Desired Data/actions_'+str(corner_num)+'.pkl')
-            # a = desired_input(d_actions, steps)
-
-            # Log actions and states of the simulation
-            actions, states = log_simulation(actions, states, steps, a, env, total_reward, total_time)
+            elif controller == "d":
+                d_actions = pd.read_pickle(f"{desired_data_actions}/actions_{str(corner_num)}.pkl")
+                a = desired_input(d_actions, steps)
+            # Keyborad control
+            else:
+                register_input()
 
             s, r, done, info = env.step(a)
-            time.sleep(0.015)
+            time.sleep(0.035)
             total_reward += r
             steps += 1
             isopen = env.render()
@@ -845,10 +876,10 @@ if __name__ == "__main__":
             total_time += (endtime - starttime)
         print(f"Episode total simulation time: {total_time} sec\n")
         print(states)
-        print("Storing.... ", 'trajectory_' + str(corner_num) + '.pkl' )
-        states.to_pickle(sim_data_states + 'states_' + str(corner_num) + '.pkl')  # THIS CAN BE CHANGED WITH SOMETHING FASTER
-        print("Storing.... ", 'actions_' + str(corner_num) + '.pkl' )
-        actions.to_pickle(sim_data_actions + 'actions_' + str(corner_num) + '.pkl')  # THIS CAN BE CHANGED WITH SOMETHING FASTER        
+        print(f"Storing.... \ttrajectory_{str(corner_num)}.pkl")
+        states.to_pickle(f"{sim_data_states}states_{str(corner_num)}.pkl")  # THIS CAN BE CHANGED WITH SOMETHING FASTER
+        print(f"Storing.... \tactions_{str(corner_num)}.pkl")
+        actions.to_pickle(f"{sim_data_actions}actions_{str(corner_num)}.pkl")  # THIS CAN BE CHANGED WITH SOMETHING FASTER        
         
         # with open("./Corners Templates/corner"+str(corner_num)+".txt", "wb") as fp:   #Pickling
         #     pickle.dump(env.track, fp)

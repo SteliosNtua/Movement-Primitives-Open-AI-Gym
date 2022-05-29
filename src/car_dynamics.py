@@ -22,7 +22,7 @@ from Box2D.b2 import (
 )
 
 # Costum constants added by Stelios
-ENGINE_COEF = 0.2
+ENGINE_COEF = 0.5
 
 SIZE = 0.02
 ENGINE_POWER = 100000000 * SIZE * SIZE * ENGINE_COEF
