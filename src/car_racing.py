@@ -1,3 +1,30 @@
+"""
+Instructions to run this custom environment
+
+## Execute
+
+    run from cmd python /path/to/file/car_racing.py <corner_num> <controller>
+    ex. python src/car_racing.py 85 c
+    means run the script for corner 85 degrees with the hand controller
+
+    Options:    corner_num     controller
+                85             c: hand controller
+                65             k: keyboard 
+                45             d: desired input actions 
+                35  
+                100
+                95
+                110
+                130
+    
+## Initial speed:
+    Comment or uncomment initial_speed if you desire the agent to begin with initial speed
+
+
+"""
+
+
+
 __credits__ = ["Andrea PIERRÉ"]
 
 import math
@@ -36,24 +63,27 @@ BORDER = 8 / SCALE
 BORDER_MIN_COUNT = 4
 
 # Parameters added by Stelios
-sim_params_path = "./simulation_parameters/desired_track_parameters.txt"
-# sim_params_path = "./simulation_parameters/desired2_track_parameters.txt"
+# sim_params_path = "./simulation_parameters/desired_track_parameters.txt"
+sim_params_path = "./simulation_parameters/desired2_track_parameters.txt"
 
 sim_data_actions = "./simulation_data/actions/"
 sim_data_states = "./simulation_data/states/"
 desired_data_actions = "./desired_data/actions/"
 desired_data_states = "./desired_data/states/"
+expert_data_actions = "./expert_dmp/actions/"
+expert_data_states = "./expert_dmp/states/"
 
 
 corners = {
-    35: [310,348],
-    45: [0,46],
-    65: [282,333],
-    85: [58,125],
-    95: [50,111],
-    100: [281,345],
-    110: [250, 297],
-    130: [128,181],
+# corner_angle : [x, y, (vel_x, vel_y), angle] <-- initial params
+    35: [310,348,(36.4, 38.9), 0],
+    45: [0,46, (11.1, 46.2), 0],
+    65: [282,333, (49.3, -11.1), -0.06],
+    85: [58,125, (-36.3, 37.5), 0],
+    95: [50,111, (-44.5, 34.5), 0],
+    100: [281,345, (7.2, -52.5), 0],
+    110: [250, 297, (52.1, -23.9), -0.045],
+    130: [128,181, (-35.5, 7.7), -0.045],
 }
 
 class FrictionDetector(contactListener):
@@ -441,30 +471,30 @@ class CarRacing(gym.Env, EzPickle):
             self.road_poly.append(([road1_l, road1_r, road2_r, road2_l], t.color))
             self.road.append(t)
             # Comment this if statement to remove red-white corner kerbs
-            # if border[i]:
-            #     side = np.sign(beta2 - beta1)
-            #     b1_l = (
-            #         x1 + side * TRACK_WIDTH * math.cos(beta1),
-            #         y1 + side * TRACK_WIDTH * math.sin(beta1),
-            #     )
-            #     b1_r = (
-            #         x1 + side * (TRACK_WIDTH + BORDER) * math.cos(beta1),
-            #         y1 + side * (TRACK_WIDTH + BORDER) * math.sin(beta1),
-            #     )
-            #     b2_l = (
-            #         x2 + side * TRACK_WIDTH * math.cos(beta2),
-            #         y2 + side * TRACK_WIDTH * math.sin(beta2),
-            #     )
-            #     b2_r = (
-            #         x2 + side * (TRACK_WIDTH + BORDER) * math.cos(beta2),
-            #         y2 + side * (TRACK_WIDTH + BORDER) * math.sin(beta2),
-            #     )
-            #     self.road_poly.append(
-            #         (
-            #             [b1_l, b1_r, b2_r, b2_l],
-            #             (255, 255, 255) if i % 2 == 0 else (255, 0, 0),
-            #         )
-            #     )
+            if border[i]:
+                side = np.sign(beta2 - beta1)
+                b1_l = (
+                    x1 + side * TRACK_WIDTH * math.cos(beta1),
+                    y1 + side * TRACK_WIDTH * math.sin(beta1),
+                )
+                b1_r = (
+                    x1 + side * (TRACK_WIDTH + BORDER) * math.cos(beta1),
+                    y1 + side * (TRACK_WIDTH + BORDER) * math.sin(beta1),
+                )
+                b2_l = (
+                    x2 + side * TRACK_WIDTH * math.cos(beta2),
+                    y2 + side * TRACK_WIDTH * math.sin(beta2),
+                )
+                b2_r = (
+                    x2 + side * (TRACK_WIDTH + BORDER) * math.cos(beta2),
+                    y2 + side * (TRACK_WIDTH + BORDER) * math.sin(beta2),
+                )
+                self.road_poly.append(
+                    (
+                        [b1_l, b1_r, b2_r, b2_l],
+                        (255, 255, 255) if i % 2 == 0 else (255, 0, 0),
+                    )
+                )
         
         if self.corner_num:
             self.track = track[corners[corner_num][0]:corners[corner_num][1]]
@@ -498,7 +528,7 @@ class CarRacing(gym.Env, EzPickle):
                     "retry to generate track (normal if there are not many"
                     "instances of this message)"
                 )
-        self.car = Car(self.world, *self.track[0][1:4])
+        self.car = Car(self.world, *self.track[0][1:4], add_angle=corners[self.corner_num][3])
 
         if not return_info:
             return self.step(None)[0]
@@ -732,7 +762,7 @@ def init_controller():
     return gamepad
 
 def controller_input(gamepad, a):
-    steer_cap = 0.3
+    steer_cap = 1.0
     report = gamepad.read(64)
     if report:
         if report[12] >100:
@@ -755,8 +785,7 @@ def desired_input(d_actions, steps):
     a = []
     if steps > len(d_actions)-1:
         steps = len(d_actions)-1
-    a[0],a[1],a[2] = d_actions['Steering Angle'][steps], d_actions['Gas'][steps], d_actions['Brake'][steps]
-    # a[0],a[1],a[2] = d_actions[:,0][steps], d_actions[:,1][steps], d_actions[:,2][steps]
+    a = [d_actions['s'][steps], d_actions['g'][steps], d_actions['b'][steps]]
     return a
 
 def log_simulation(actions, states, steps, a, env, total_reward, total_time):
@@ -765,6 +794,8 @@ def log_simulation(actions, states, steps, a, env, total_reward, total_time):
         env.car.hull.linearVelocity[0],
         env.car.hull.position[1],
         env.car.hull.linearVelocity[1],
+        env.car.f_force,
+        env.car.p_force,
         env.car.hull.angularVelocity,
         -env.car.hull.angle,
         total_reward,
@@ -802,6 +833,12 @@ def register_input():
             if event.key == pygame.K_DOWN:
                 a[2] = 0
 
+def initial_speed(env, corner_num):
+    env.car.gas(1)
+    env.car.hull.linearVelocity[0], env.car.hull.linearVelocity[1] = corners[corner_num][2]
+    env.render()
+    return env
+
 if __name__ == "__main__":
     a = np.array([0.0, 0.0, 0.0])
     import pygame
@@ -813,7 +850,6 @@ if __name__ == "__main__":
         # {10.0v2}  -> (95)->[50,111]   | (110)->[250, 297]   | (130)->[128,181]   | 
         # {14.0}    -> (100)->[281,345] |
 
-    print("CMD ENTRY: ", sys.argv)
     corner_num = None
     controller = "k"
     if len(sys.argv) > 1: 
@@ -835,17 +871,20 @@ if __name__ == "__main__":
         import pickle
 
         #Save track and road polylines
-        with open("road_poly.pkl", "wb") as fp: 
-            pickle.dump(env.road_poly, fp)
-        with open("track.pkl", "wb") as fp:  
-            pickle.dump(env.track, fp)
+        # with open("road_poly.pkl", "wb") as fp: 
+        #     pickle.dump(env.road_poly, fp)
+        # with open("track.pkl", "wb") as fp:  
+        #     pickle.dump(env.track, fp)
 
         total_reward = 0.0
         total_time = 0.0
         steps = 0
         restart = False
-        states = pd.DataFrame(columns=['Position x', 'Velocity x', 'Position y', 'Velocity y', 'Angular Velocity ω', 'Angle δ','Reward r','Timestep t'])
-        actions = pd.DataFrame(columns=['Steering Angle', 'Gas', 'Brake'])
+        states = pd.DataFrame(columns=['x', 'vx', 'y', 'vy', 'f', 'p', 'w', 'd','r','t'])
+        actions = pd.DataFrame(columns=['s', 'g', 'b'])
+        
+        #initial speed
+        # env = initial_speed(env, corner_num)
         while True:
             starttime = time.process_time()
 
@@ -858,14 +897,20 @@ if __name__ == "__main__":
 
             # Demonstrate desired actions
             elif controller == "d":
-                d_actions = pd.read_pickle(f"{desired_data_actions}/actions_{str(corner_num)}.pkl")
+                d_actions = pd.read_pickle(f"{expert_data_actions}/actions_{str(corner_num)}.pkl")
                 a = desired_input(d_actions, steps)
+                actions, states = log_simulation(actions, states, steps, a, env, total_reward, total_time)
             # Keyborad control
             else:
                 register_input()
-
+                actions, states = log_simulation(actions, states, steps, a, env, total_reward, total_time)
+            
             s, r, done, info = env.step(a)
             time.sleep(0.035)
+
+            # Keep initial speed on the start of the simulation
+            if steps < 45:
+                env = initial_speed(env, corner_num)
             total_reward += r
             steps += 1
             isopen = env.render()
@@ -875,7 +920,6 @@ if __name__ == "__main__":
             endtime = time.process_time()
             total_time += (endtime - starttime)
         print(f"Episode total simulation time: {total_time} sec\n")
-        print(states)
         print(f"Storing.... \ttrajectory_{str(corner_num)}.pkl")
         states.to_pickle(f"{sim_data_states}states_{str(corner_num)}.pkl")  # THIS CAN BE CHANGED WITH SOMETHING FASTER
         print(f"Storing.... \tactions_{str(corner_num)}.pkl")
@@ -885,5 +929,7 @@ if __name__ == "__main__":
         #     pickle.dump(env.track, fp)
         
         print("Total reward in episode {} : {:+0.2f}\n".format(episode, total_reward))
-        episode += 1    
+        episode += 1
+        if controller == "d":
+            break    
     env.close()

@@ -22,7 +22,7 @@ from Box2D.b2 import (
 )
 
 # Costum constants added by Stelios
-ENGINE_COEF = 0.5
+ENGINE_COEF = 0.6
 
 SIZE = 0.02
 ENGINE_POWER = 100000000 * SIZE * SIZE * ENGINE_COEF
@@ -52,7 +52,8 @@ MUD_COLOR = (102, 102, 0)
 
 
 class Car:
-    def __init__(self, world, init_angle, init_x, init_y):
+    def __init__(self, world, init_angle, init_x, init_y, add_angle):
+        init_angle+=add_angle  #FIX INITIAL ANGLE
         self.world = world
         self.hull = self.world.CreateDynamicBody(
             position=(init_x, init_y),
@@ -85,6 +86,7 @@ class Car:
             ],
         )
         self.hull.color = (0.8, 0.0, 0.0)
+        self.p_force, self.f_force = 0, 0
         self.wheels = []
         self.fuel_spent = 0.0
         WHEEL_POLY = [
@@ -169,6 +171,8 @@ class Car:
         self.wheels[1].steer = s
 
     def step(self, dt):
+        p_forces = []
+        f_forces = []
         for w in self.wheels:
             # Steer each wheel
             dir = np.sign(w.steer - w.joint.angle)
@@ -255,7 +259,6 @@ class Car:
                 p_force *= force
 
             w.omega -= dt * f_force * w.wheel_rad / WHEEL_MOMENT_OF_INERTIA
-
             w.ApplyForceToCenter(
                 (
                     p_force * side[0] + f_force * forw[0],
@@ -263,6 +266,10 @@ class Car:
                 ),
                 True,
             )
+            p_forces.append(p_force)
+            f_forces.append(f_force)
+        self.p_force = sum(p_forces)/4
+        self.f_force = sum(f_forces)/4
 
     def draw(self, surface, zoom, translation, angle, draw_particles=True):
         if draw_particles:
