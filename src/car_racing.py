@@ -7,15 +7,20 @@ Instructions to run this custom environment
     ex. python src/car_racing.py 85 c
     means run the script for corner 85 degrees with the hand controller
 
-    Options:    corner_num     controller
-                85             c: hand controller
-                65             k: keyboard 
-                45             d: desired input actions 
-                35  
-                100
-                95
-                110
-                130
+    Options: SCALE    track_v    corner_num     controller
+              10        v1          85         c: hand controller
+              10        v1          65         k: keyboard 
+              10        v1          45         d: desired input actions 
+              10        v1          35  
+              10        v2          130
+              10        v2          100
+              10        v2          95
+              14        v1          110
+
+
+        # {10.0}    -> (85)->[58,125]   | (45)->[0,46]        | (35)->[310,348]    | (65)->[282,333]
+        # {10.0v2}  -> (95)->[50,111]   | (110)->[250, 297]   | (130)->[128,181]   | 
+        # {14.0}    -> (100)->[281,345] |
     
 ## Initial speed:
     Comment or uncomment initial_speed if you desire the agent to begin with initial speed
@@ -45,7 +50,7 @@ STATE_H = 96
 VIDEO_W = 600
 VIDEO_H = 400
 WINDOW_W = 1000
-WINDOW_H = 800
+WINDOW_H = 750
 
 SCALE = 10.0  # Track scale
 TRACK_RAD = 900 / SCALE  # Track is heavily morphed circle with this radius
@@ -63,8 +68,8 @@ BORDER = 8 / SCALE
 BORDER_MIN_COUNT = 4
 
 # Parameters added by Stelios
-# sim_params_path = "./simulation_parameters/desired_track_parameters.txt"
-sim_params_path = "./simulation_parameters/desired2_track_parameters.txt"
+sim_params_path = "./simulation_parameters/desired_track_parameters.txt"
+# sim_params_path = "./simulation_parameters/desired2_track_parameters.txt"
 
 sim_data_actions = "./simulation_data/actions/"
 sim_data_states = "./simulation_data/states/"
@@ -84,6 +89,7 @@ corners = {
     100: [281,345, (7.2, -52.5), 0],
     110: [250, 297, (52.1, -23.9), -0.045],
     130: [128,181, (-35.5, 7.7), -0.045],
+    "all": [0,-1, (0,0), None],
 }
 
 class FrictionDetector(contactListener):
@@ -754,31 +760,56 @@ class CarRacing(gym.Env, EzPickle):
             pygame.display.quit()
             self.isopen = False
             pygame.quit()
-def init_controller():
+def init_controller(controller = "s"):
     import hid
-    gamepad = hid.device()
-    gamepad.open(0x2563,0x0575)
+    # hand controller
+    if controller == "c":
+        gamepad = hid.device()
+        gamepad.open(0x2563,0x0575)
+
+    # steering wheel
+    if controller == "s":
+        gamepad = hid.device(121,6244)
+        gamepad.open(121,6244)
+
     gamepad.set_nonblocking(True)
     return gamepad
 
 def controller_input(gamepad, a):
     steer_cap = 1.0
     report = gamepad.read(64)
+    # steering wheel
     if report:
         if report[12] >100:
             print("RESTART EPISODE\n")
             global restart
             restart = True
             return a
-        if report[13] >100:
+        if report[11] >100:
             print("QUIT.....\n")
             env.close()
             return a   
-        x = ((report[3] - 127) / 127)
-        steer = np.tan(x)/(np.pi/2) * steer_cap
-        gas = max(0, -((report[6] - 128)/127))
-        brake = max(0, ((report[6] - 128)/127))
+        steer = ((report[3] - 128) / 127)
+        # steer = np.tan(x)/(np.pi/2) * steer_cap
+        gas = report[13]/255
+        brake = report[14]/255
         a = [steer, gas, brake]
+    # hand controller
+    # if report:
+    #     if report[12] >100:
+    #         print("RESTART EPISODE\n")
+    #         global restart
+    #         restart = True
+    #         return a
+    #     if report[13] >100:
+    #         print("QUIT.....\n")
+    #         env.close()
+    #         return a   
+    #     x = ((report[3] - 127) / 127)
+    #     steer = np.tan(x)/(np.pi/2) * steer_cap
+    #     gas = max(0, -((report[6] - 128)/127))
+    #     brake = max(0, ((report[6] - 128)/127))
+    #     a = [steer, gas, brake]
     return a
 
 def desired_input(d_actions, steps):
@@ -909,8 +940,8 @@ if __name__ == "__main__":
             time.sleep(0.035)
 
             # Keep initial speed on the start of the simulation
-            if steps < 45:
-                env = initial_speed(env, corner_num)
+            # if steps < 45:
+            #     env = initial_speed(env, corner_num)
             total_reward += r
             steps += 1
             isopen = env.render()

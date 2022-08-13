@@ -52,8 +52,9 @@ MUD_COLOR = (102, 102, 0)
 
 
 class Car:
-    def __init__(self, world, init_angle, init_x, init_y, add_angle):
-        init_angle+=add_angle  #FIX INITIAL ANGLE
+    def __init__(self, world, init_angle, init_x, init_y, add_angle=None):
+        if add_angle:
+            init_angle+=add_angle  #FIX INITIAL ANGLE
         self.world = world
         self.hull = self.world.CreateDynamicBody(
             position=(init_x, init_y),
