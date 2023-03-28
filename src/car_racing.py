@@ -13,9 +13,9 @@ Instructions to run this custom environment
               10        v1          45         d: desired input actions 
               10        v1          35  
               10        v2          130
-              10        v2          100
+              14        v2          100
               10        v2          95
-              14        v1          110
+              10        v2          110
 
 
         # {10.0}    -> (85)->[58,125]   | (45)->[0,46]        | (35)->[310,348]    | (65)->[282,333]
@@ -68,8 +68,11 @@ BORDER = 8 / SCALE
 BORDER_MIN_COUNT = 4
 
 # Parameters added by Stelios
-sim_params_path = "./simulation_parameters/desired_track_parameters.txt"
-# sim_params_path = "./simulation_parameters/desired2_track_parameters.txt"
+sim_params_path_v1 = "./simulation_parameters/track_v1.txt"
+sim_params_path_v2 = "./simulation_parameters/track_v2.txt"
+sim_params_path_v3 = "./simulation_parameters/track_v3.txt"
+sim_params_path_v4 = "./simulation_parameters/track_v4.txt"
+sim_params_path_v5 = "./simulation_parameters/track_v5.txt"
 
 sim_data_actions = "./simulation_data/actions/"
 sim_data_states = "./simulation_data/states/"
@@ -80,16 +83,29 @@ expert_data_states = "./expert_dmp/states/"
 
 
 corners = {
-# corner_angle : [x, y, (vel_x, vel_y), angle] <-- initial params
-    35: [310,348,(36.4, 38.9), 0],
-    45: [0,46, (11.1, 46.2), 0],
-    65: [282,333, (49.3, -11.1), -0.06],
-    85: [58,125, (-36.3, 37.5), 0],
-    95: [50,111, (-44.5, 34.5), 0],
-    100: [281,345, (7.2, -52.5), 0],
-    110: [250, 297, (52.1, -23.9), -0.045],
-    130: [128,181, (-35.5, 7.7), -0.045],
-    "all": [0,-1, (0,0), None],
+# corner_angle : [x, y, (vel_x, vel_y), angle, SCALE, track_params] <-- initial params
+    30: [310,348,(36.4, 38.9), 0, 10, sim_params_path_v1],
+    40: [0,35, (11.1, 46.2), 0, 10, sim_params_path_v1], #(0, 46)
+    50: [228,275, (46.966, 24.39), 0, 10, sim_params_path_v3], #(228, 280)
+    60: [282,333, (49.3, -11.1), -0.06, 10, sim_params_path_v1],
+    80: [116,169, (0, 0), 0.1, 10, sim_params_path_v3],
+    85: [58,125, (-36.3, 37.5), 0, 10, sim_params_path_v1],
+    90: [50,111, (-44.5, 34.5), 0, 10, sim_params_path_v2],
+    100: [281,345, (7.2, -52.5), 0, 14, sim_params_path_v1],
+    110: [250, 297, (52.1, -23.9), -0.045, 10, sim_params_path_v2],
+    130: [128,181, (-35.5, 7.7), -0.045, 10, sim_params_path_v2],
+    135: [145,210, (0, 0), -0.19, 10, sim_params_path_v3],
+    140: [118,181, (0, 0), 0.02, 10, sim_params_path_v4],
+    145: [83,142, (0, 0), -0.22, 10, sim_params_path_v3],
+    147: [252,310, (0, 0), -0.185, 10, sim_params_path_v4],
+    150: [185,250, (0, 0), -0.085, 10, sim_params_path_v4],
+    160: [0,110, (0, 0), -0.04, 10, sim_params_path_v4],
+    None: [0,-1, (0,0), None],
+    1: [0,-1, (0,0), 0, 10, sim_params_path_v1],
+    2: [0,-1, (0,0), 0, 10, sim_params_path_v2],
+    3: [0,-1, (0,0), 0, 10, sim_params_path_v3],
+    4: [0,-1, (0,0), 0, 10, sim_params_path_v4],
+    5: [0,-1, (0,0), 0, 10, sim_params_path_v5],
 }
 
 class FrictionDetector(contactListener):
@@ -209,10 +225,12 @@ class CarRacing(gym.Env, EzPickle):
         verbose: bool = True,
         lap_complete_percent: float = 0.95,
         domain_randomize: bool = False,
-        corner_num: int = None 
+        corner_num: int = None,
+        sim_params_path: str = None 
     ):
         EzPickle.__init__(self)
         self.corner_num = corner_num
+        self.sim_params_path = sim_params_path
         self.domain_randomize = domain_randomize
         self._init_colors()
 
@@ -268,8 +286,8 @@ class CarRacing(gym.Env, EzPickle):
             self.bg_color = np.array([102, 204, 102])
             self.grass_color = np.array([102, 230, 102])
 
-    def load_checkpoints(self, n_checkpoints):
-        with open(sim_params_path) as f:
+    def load_checkpoints(self, n_checkpoints, path):
+        with open(path) as f:
             lines = f.readlines()
             f.close()
         noise = [float(s.strip()) for s in lines[:n_checkpoints]]
@@ -308,7 +326,7 @@ class CarRacing(gym.Env, EzPickle):
             rad_list.append(rad)
             checkpoints.append((alpha, rad * math.cos(alpha), rad * math.sin(alpha)))
 
-        with open('new_track_parameters.txt', 'w') as f:
+        with open(f'new_track_parameters_{SCALE}.txt', 'w') as f:
             for item in noise_list:
                 f.write("%s\n" % item)
             f.write("\n")
@@ -319,10 +337,12 @@ class CarRacing(gym.Env, EzPickle):
 
     def _create_track(self):
         CHECKPOINTS = 12
-        
-        # checkpoints = self.store_checkpoints(CHECKPOINTS)
+        if self.sim_params_path:
+            checkpoints =  self.load_checkpoints(CHECKPOINTS, path=self.sim_params_path)
+        else:
+            checkpoints = self.store_checkpoints(CHECKPOINTS)
 
-        checkpoints =  self.load_checkpoints(CHECKPOINTS)
+        
 
         self.road = []
 
@@ -441,7 +461,7 @@ class CarRacing(gym.Env, EzPickle):
         # {10.0v2}  -> (95)->[50,111]   | (110)->[250, 297]   | (130)->[128,181]   | 
         # {14.0}    -> (100)->[281,345] |
 
-        if self.corner_num:
+        if self.corner_num and self.corner_num > 10:
             iter = range(corners[corner_num][0],corners[corner_num][1])
         else:
             iter = range(len(track))
@@ -883,8 +903,20 @@ if __name__ == "__main__":
 
     corner_num = None
     controller = "k"
+    global sim_params_path
+    sim_params_path = None
     if len(sys.argv) > 1: 
         corner_num = int(sys.argv[1])
+        if corner_num == -1:
+            corner_num = None
+            ZOOM = 0.2
+        else:    
+            if corner_num not in corners:
+                print("'\033[91m'This corner is not included")
+                exit
+            else:
+                SCALE = corners[corner_num][4]
+                sim_params_path = corners[corner_num][5]
     if len(sys.argv) > 2: 
         controller = sys.argv[2]
 
@@ -892,7 +924,7 @@ if __name__ == "__main__":
     if controller == "c":
         gamepad = init_controller()
 
-    env = CarRacing(corner_num=corner_num)
+    env = CarRacing(corner_num=corner_num, sim_params_path=sim_params_path)
     env.render()
 
     isopen = True
@@ -901,7 +933,7 @@ if __name__ == "__main__":
         env.reset()
         import pickle
 
-        #Save track and road polylines
+        # # Save track and road polylines
         # with open("road_poly.pkl", "wb") as fp: 
         #     pickle.dump(env.road_poly, fp)
         # with open("track.pkl", "wb") as fp:  
@@ -915,7 +947,7 @@ if __name__ == "__main__":
         actions = pd.DataFrame(columns=['s', 'g', 'b'])
         
         #initial speed
-        # env = initial_speed(env, corner_num)
+        env = initial_speed(env, corner_num)
         while True:
             starttime = time.process_time()
 
@@ -940,8 +972,8 @@ if __name__ == "__main__":
             time.sleep(0.035)
 
             # Keep initial speed on the start of the simulation
-            # if steps < 45:
-            #     env = initial_speed(env, corner_num)
+            if steps < 25:
+                env = initial_speed(env, corner_num)
             total_reward += r
             steps += 1
             isopen = env.render()

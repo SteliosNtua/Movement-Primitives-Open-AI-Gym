@@ -134,7 +134,7 @@ dmypy.json
 
 simulation_data
 desired_data
-
+*.pkl
 
 # Test scipts or notebooks
 notebooks
