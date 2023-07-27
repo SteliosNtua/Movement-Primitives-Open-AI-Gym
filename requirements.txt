@@ -1,0 +1,6 @@
+pandas
+gym
+ufal.pybox2d
+pygame
+pyglet
+ipykernel
